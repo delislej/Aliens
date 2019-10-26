@@ -1,0 +1,372 @@
+
+<!DOCTYPE html>
+<html lang="html5">
+<head>
+    <title>Aliens!</title>
+    <style>
+        html, body {
+            margin: 0;
+            height: 100%;
+        }
+        #c {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+    </style>
+</head>
+<body>
+
+
+<canvas id="c"></canvas>
+<script src="js/three.js"></script>
+<script src="js/OrbitControls.js"></script>
+<script src="js/tween.umd.js"></script>
+
+
+<script>
+    var clock = new THREE.Clock();
+    var speed = 100; //units a second
+    var delta = 0;
+    var scene = new THREE.Scene();
+    var camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.x = 2;
+    camera.position.y = 30;
+    camera.position.z = 30;
+
+    const canvas = document.querySelector('#c');
+    const renderer = new THREE.WebGLRenderer({canvas});
+    //using orbiter camera example for camera controls
+    controls = new THREE.OrbitControls( camera, renderer.domElement);
+
+
+    // instantiate a listener
+    var audioListener = new THREE.AudioListener();
+
+    // add the listener to the camera
+    camera.add( audioListener );
+
+    // instantiate audio object
+    var pickup = new THREE.Audio( audioListener );
+    var death = new THREE.Audio( audioListener );
+
+    // add the audio object to the scene
+    scene.add( pickup );
+    scene.add( death);
+
+    // instantiate loaders
+    var loader = new THREE.AudioLoader();
+    var loader2 = new THREE.AudioLoader();
+
+    // load a resource
+    loader.load(
+        // resource URL
+        'http://joseph.delisle.biz/js/sounds/eat.wav',
+        // Function when resource is loaded
+        function ( audioBuffer ) {
+            // set the audio object buffer to the loaded object
+            pickup.setBuffer( audioBuffer );
+
+        },
+        // Function called when download progresses
+        function ( xfer ) {
+            console.log( (xhr.loaded / xhr.total * 100) + '% loaded' );
+        },
+        // Function called when download errors
+        function ( xfer ) {
+            console.log( 'An error happened' );
+        }
+    );
+
+    // load a resource
+    loader2.load(
+        // resource URL
+        'http://joseph.delisle.biz/js/sounds/death.mp3',
+        // Function when resource is loaded
+        function ( audioBuffer ) {
+            // set the audio object buffer to the loaded object
+            death.setBuffer( audioBuffer );
+
+
+        },
+        // Function called when download progresses
+        function ( xfer ) {
+            console.log( (xhr.loaded / xhr.total * 100) + '% loaded' );
+        },
+        // Function called when download errors
+        function ( xfer ) {
+            console.log( 'An error happened' );
+        }
+    );
+
+    //create variables and flags
+    var score = 0;
+    var moveflag = 0;
+    var pointFlag = 1;
+
+    // create score text
+    var text2 = document.createElement('p');
+    text2.style.position = 'absolute';
+    text2.style.width = 200;
+    text2.style.height = 20;
+    text2.style.opacity = 1;
+    text2.innerHTML = "Score: ";
+    text2.style.top = 90 + '%';
+    text2.style.left = 5 + '%';
+    document.body.appendChild(text2);
+
+    //creating floor
+    var geom = new THREE.BoxGeometry(1000, 1, 1000);
+    var mat = new THREE.MeshBasicMaterial({color: 0x5C872D});
+    var cube = new THREE.Mesh(geom, mat);
+    scene.add(cube);
+
+    //creating vehicle
+    Tgeometry = new THREE.TorusGeometry( 1, .5, 16, 100 );
+    Tmaterial = new THREE.MeshBasicMaterial( { color: 0x246024 } );
+    torus = new THREE.Mesh( Tgeometry, Tmaterial );
+    torus.name="vehicle";
+    geometry = new THREE.SphereGeometry( 1, 32, 32 );
+    material = new THREE.MeshBasicMaterial( {color: 0x850a00} );
+    sphere = new THREE.Mesh( geometry, material );
+    //tweak positioning
+    sphere.position.y+=2.3;
+    torus.position.y +=2;
+    torus.rotation.x = Math.PI/2;
+
+
+    //combine vehicle parts
+    vehicle = new THREE.Object3D();
+    vehicle.add(torus);
+    vehicle.add(sphere);
+    // add vehicle to scene
+    scene.add( vehicle );
+
+
+    //make tree's
+    var bark = new THREE.MeshBasicMaterial({color: 0xa0522d});
+    var trunk = new THREE.CylinderGeometry( .2, .2, 5, 32 );
+    var treeStump = new THREE.Mesh(trunk,bark);
+    var leafShape = new THREE.ConeBufferGeometry( 1.5, 5, 7.5 );
+    var leafColor = new THREE.MeshBasicMaterial( {color: 0x3a5f0b} );
+    var treeTop = new THREE.Mesh( leafShape, leafColor );
+    treeTop.position.y+=3;
+
+    //random number for specific ranges
+    function getRandomArbitrary(min, max) {
+        return Math.random() * (max - min) + min;
+    }
+
+    trees = [];
+    var tree = new THREE.Object3D();
+    tree.add(treeStump);
+    tree.add(treeTop);
+
+
+    for(let y = 0; y < 10; y++)
+    {
+        t = tree.clone();
+        t.name = t+y
+        scene.add(t);
+
+    }
+
+    var spheres = [];
+    var geometry1 = new THREE.SphereGeometry( .5, 32, 32 );
+    var material1 = new THREE.MeshBasicMaterial( {color: 0xffff00} );
+    var shape = new THREE.Mesh( geometry1, material1 );
+    s1 = new THREE.Object3D();
+    s1.add(shape);
+
+    for(let x = 0; x < 5; x++) {
+        s = s1.clone();
+        s.name = x;
+        scene.add(s)
+    }
+
+    var light = new THREE.AmbientLight( 0x404040 ); // soft white light
+    scene.add( light );
+
+    var flag =0;
+    randomizeTrees();
+    randomizeOrbs();
+    document.addEventListener("keydown", onDocumentKeyDown, false);
+
+    function onDocumentKeyDown(event) {
+        var keyCode = event.which;
+        if (keyCode == 87) {
+            vehicle.position.z -= speed*delta;
+            moveflag=1;
+
+
+        } else if (keyCode == 83) {
+            vehicle.position.z += speed*delta;
+            moveflag=1;
+
+        } else if (keyCode == 65) {
+            vehicle.position.x -= speed*delta;
+            moveflag=1;
+
+        } else if (keyCode == 68) {
+            vehicle.position.x += speed*delta;
+            moveflag=1;
+
+
+        } else if (keyCode == 32) {
+            vehicle.position.set(0, 0, 0);
+        }
+    };
+
+
+    function checkCollision(obj1, obj2) {
+
+
+        x1 = obj1.position.x;
+        x2 = obj2.position.x;
+
+        z1 = obj1.position.z;
+        z2 = obj2.position.z;
+
+        i = x2 - x1;
+        i = i * i;
+        j = z2 - z1;
+        j = j * j;
+        test = Math.sqrt((i + j));
+
+        return test < 2;
+    }
+    let count =0;
+
+    function checkAll()
+    {
+        for(let x = 0; x < 10;x++)
+        {
+            n = t + x;
+            if(checkCollision(vehicle, scene.getObjectByName(n)))
+            {
+                return 1;
+            }
+        }
+
+        for(let x = 0; x < 5;x++)
+        {
+            if(checkCollision(vehicle,scene.getObjectByName(x)))
+            {
+                moveEntity(scene.getObjectByName(x));
+                score+=10;
+                pointFlag=1;
+                pickup.play();
+            }
+        }
+        return 0;
+    }
+
+    function moveEntity(object) {
+        if(object !== undefined) {
+            object.position.x = getRandomArbitrary(-25, 25);
+            object.position.z = getRandomArbitrary(-25, 25);
+        }
+    }
+
+
+    function health(input)
+    {
+        if(count === 1)
+        {
+            torus.material.color.setHex(0xFFFF00);
+        }
+        if(count === 2)
+        {
+            torus.material.color.setHex(0xFF0000);
+        }
+    }
+
+    function randomizeOrbs()
+    {
+        for(let i = 0; i <5; i++)
+        {
+            console.log("moving spheres");
+            moveEntity(scene.getObjectByName(i));
+            scene.getObjectByName(i).position.y = 2;
+        }
+
+    }
+
+    function randomizeTrees()
+    {
+        for(let i = 0; i<10; i++)
+        {
+            console.log("moving Trees");
+            n = t + i;
+            moveEntity(scene.getObjectByName(n));
+            scene.getObjectByName(n).position.y = 2;
+            while(checkCollision(vehicle, scene.getObjectByName(n)))
+            {
+                moveEntity(scene.getObjectByName(n));
+                scene.getObjectByName(n).position.y = 2;
+            }
+        }
+
+    }
+
+    function resizeRendererToDisplaySize(renderer) {
+        const canvas = renderer.domElement;
+        const width = canvas.clientWidth;
+        const height = canvas.clientHeight;
+        const needResize = canvas.width !== width || canvas.height !== height;
+        if (needResize) {
+            renderer.setSize(width, height, false);
+        }
+        return needResize;
+    }
+
+    var render = function() {
+        if(resizeRendererToDisplaySize(renderer)){
+        const canvas = renderer.domElement;
+        camera.aspect = canvas.clientWidth / canvas.clientHeight;
+        camera.updateProjectionMatrix();}
+        delta = clock.getDelta();
+
+
+
+        if(checkAll() && moveflag==1)
+        {
+            moveflag=0;
+            death.play();
+            torus.material.color.setHex(0x228B22);
+            count++;
+            health(count);
+        }
+
+        if(count >= 3)
+        {
+            alert("Game over!"+" your score is: "+score);
+            randomizeOrbs();
+            randomizeTrees();
+            count =0;
+            score = 0;
+            moveflag=0;
+        }
+        if(score%25==0 && score!=0 && pointFlag==1)
+        {
+            randomizeTrees();
+            pointFlag=0;
+        }
+        text2.innerHTML = "score: " + score;
+        renderer.render(scene, camera);
+        requestAnimationFrame(render);
+    };
+
+
+    render();
+
+</script>
+
+
+
+</body>
+
+
+
+
+</html>
